@@ -36,6 +36,37 @@ MAX_AVG_GOALS_FOR_UNDER = 2.3    # Average goals in recent matches for Under sig
 MIN_AVG_GOALS_FOR_BTTS = 1.0     # Min avg goals per team for BTTS signal
 MIN_BTTS_RATE = 0.45             # Min BTTS rate in recent matches
 
+# Top leagues preset (ID → display name)
+# Used by --top flag. IDs follow API-Football standard numbering.
+# If IDs don't match your API, the system also filters by league name keywords.
+TOP_LEAGUES = {
+    39:  "England. Premier League",
+    140: "Spain. La Liga",
+    78:  "Germany. Bundesliga",
+    135: "Italy. Serie A",
+    61:  "France. Ligue 1",
+    94:  "Portugal. Primeira Liga",
+    88:  "Netherlands. Eredivisie",
+    71:  "Brazil. Série A",
+    119: "Denmark. Superligaen",
+    113: "Sweden. Allsvenskan",
+}
+
+# Name keywords for fallback matching (case-insensitive)
+# Used when league IDs don't match — matches if ANY keyword is found in league name
+TOP_LEAGUE_KEYWORDS = [
+    "premier league",
+    "la liga", "laliga",
+    "bundesliga",
+    "serie a",
+    "ligue 1",
+    "primeira liga", "liga portugal",
+    "eredivisie",
+    "brasileir", "série a", "serie a",
+    "superliga", "superligaen",
+    "allsvenskan",
+]
+
 # Output
 TIMEZONE = 3  # UTC+3 (Moscow)
 OUTPUT_FORMAT = "table"  # "table" or "json"

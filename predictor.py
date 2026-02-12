@@ -7,10 +7,12 @@ validates with stats, and outputs betting predictions.
 
 Usage:
     python predictor.py                  # Tomorrow's predictions
+    python predictor.py --top            # Only top leagues (APL, La Liga, etc.)
     python predictor.py --today          # Today's predictions
     python predictor.py --date 2026-02-15  # Specific date
     python predictor.py --json           # JSON output
     python predictor.py --league 39      # Filter by league (e.g. 39 = EPL)
+    python predictor.py --leagues        # Show available top league IDs
 """
 
 import argparse
@@ -22,7 +24,10 @@ from datetime import datetime, timedelta, timezone
 from api_client import SStatsAPI
 from glicko_analyzer import GlickoAnalyzer
 from stats_validator import StatsValidator
-from config import TIMEZONE, MIN_CONFIDENCE, MAX_RD
+from config import (
+    TIMEZONE, MIN_CONFIDENCE, MAX_RD,
+    TOP_LEAGUES, TOP_LEAGUE_KEYWORDS,
+)
 
 
 def get_target_date(args):
@@ -35,11 +40,44 @@ def get_target_date(args):
     return tomorrow.strftime("%Y-%m-%d")
 
 
-def fetch_matches(api, target_date, league_id=None):
+def is_top_league(match):
+    """Check if a match belongs to a top league (by ID or name keywords)."""
+    league = match.get("season", {}).get("league", {})
+    league_id = league.get("id")
+    league_name = (league.get("name") or "").lower()
+
+    # Check by ID first
+    if league_id in TOP_LEAGUES:
+        return True
+
+    # Fallback: check by name keywords
+    for keyword in TOP_LEAGUE_KEYWORDS:
+        if keyword in league_name:
+            return True
+
+    return False
+
+
+def print_top_leagues():
+    """Print the list of top leagues and exit."""
+    print("\n  Top leagues preset (--top):\n")
+    for lid, name in sorted(TOP_LEAGUES.items()):
+        print(f"    ID {lid:>4}  —  {name}")
+    print(f"\n  Name keywords (fallback matching):")
+    for kw in TOP_LEAGUE_KEYWORDS:
+        print(f"    • {kw}")
+    print(f"\n  Edit config.py TOP_LEAGUES / TOP_LEAGUE_KEYWORDS to customize.\n")
+
+
+def fetch_matches(api, target_date, league_id=None, top_only=False):
     """Fetch matches for the target date."""
     print(f"\n{'='*60}")
     print(f"  FOOTBALL PREDICTIONS — {target_date}")
     print(f"  Strategy: Glicko2 Rating Dynamics")
+    if top_only:
+        print(f"  Filter: Top leagues only")
+    elif league_id:
+        print(f"  Filter: League ID {league_id}")
     print(f"{'='*60}\n")
 
     print(f"[*] Fetching matches for {target_date}...")
@@ -59,18 +97,36 @@ def fetch_matches(api, target_date, league_id=None):
     matches = [m for m in matches if m.get("date", "").startswith(target_date)
                or m.get("dateUtc", "").startswith(target_date)]
 
-    # Filter by league if specified
+    # Filter by single league ID
     if league_id:
         matches = [
             m for m in matches
             if m.get("season", {}).get("league", {}).get("id") == league_id
         ]
 
+    # Filter by top leagues preset
+    if top_only:
+        all_count = len(matches)
+        matches = [m for m in matches if is_top_league(m)]
+        print(f"[+] Top leagues filter: {len(matches)}/{all_count} matches")
+
     # Filter out already finished/cancelled matches
     active_statuses = {1, 2}
     matches = [m for m in matches if m.get("status") in active_statuses or m.get("status") is None]
 
     print(f"[+] Found {len(matches)} upcoming matches for {target_date}")
+
+    # Show which leagues are included
+    if top_only and matches:
+        seen = {}
+        for m in matches:
+            league = m.get("season", {}).get("league", {})
+            lid = league.get("id")
+            lname = league.get("name", "?")
+            if lid not in seen:
+                seen[lid] = lname
+        print(f"[+] Leagues: {', '.join(seen.values())}")
+
     return matches
 
 
@@ -253,15 +309,23 @@ def main():
     parser.add_argument("--today", action="store_true", help="Analyze today's matches")
     parser.add_argument("--date", type=str, help="Specific date (YYYY-MM-DD)")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
-    parser.add_argument("--league", type=int, help="Filter by league ID")
+    parser.add_argument("--league", type=int, help="Filter by single league ID")
+    parser.add_argument("--top", action="store_true",
+                        help="Only top leagues (EPL, La Liga, Bundesliga, Serie A, etc.)")
+    parser.add_argument("--leagues", action="store_true",
+                        help="Show available top league IDs and exit")
     parser.add_argument("--max", type=int, help="Max matches to deep-analyze")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     args = parser.parse_args()
 
+    if args.leagues:
+        print_top_leagues()
+        sys.exit(0)
+
     target_date = get_target_date(args)
 
     api = SStatsAPI()
-    matches = fetch_matches(api, target_date, league_id=args.league)
+    matches = fetch_matches(api, target_date, league_id=args.league, top_only=args.top)
 
     if not matches:
         sys.exit(0)
