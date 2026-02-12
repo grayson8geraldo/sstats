@@ -1,10 +1,15 @@
 """
-API client for sstats.net
+API client for sstats.net with rate limiting and 429 handling.
 """
 
 import time
+import threading
 import requests
 from config import API_BASE_URL, API_KEY, TIMEZONE
+
+# Max requests per minute (free tier: 30/min per IP)
+RATE_LIMIT_RPM = 25
+MIN_REQUEST_INTERVAL = 60.0 / RATE_LIMIT_RPM  # ~2.4 seconds
 
 
 class SStatsAPI:
@@ -12,35 +17,63 @@ class SStatsAPI:
         self.base_url = API_BASE_URL
         self.session = requests.Session()
         self.session.params = {"apikey": API_KEY, "timeZone": TIMEZONE}
+        self._last_request_time = 0.0
+        self._lock = threading.Lock()
+        self._request_count = 0
 
-    def _get(self, endpoint, params=None, retries=3):
-        """Make GET request with retries."""
+    def _rate_limit(self):
+        """Enforce rate limiting between requests."""
+        with self._lock:
+            now = time.time()
+            elapsed = now - self._last_request_time
+            if elapsed < MIN_REQUEST_INTERVAL:
+                time.sleep(MIN_REQUEST_INTERVAL - elapsed)
+            self._last_request_time = time.time()
+            self._request_count += 1
+
+    @property
+    def request_count(self):
+        return self._request_count
+
+    def _get(self, endpoint, params=None, retries=4):
+        """Make GET request with rate limiting and 429 backoff."""
         url = f"{self.base_url}/{endpoint}"
         for attempt in range(retries):
+            self._rate_limit()
             try:
                 resp = self.session.get(url, params=params, timeout=30)
+                if resp.status_code == 429:
+                    wait = min(2 ** (attempt + 2), 60)  # 4s, 8s, 16s, 32s
+                    print(f"\n[RATE] 429 — waiting {wait}s...", end="", flush=True)
+                    time.sleep(wait)
+                    continue
                 resp.raise_for_status()
                 return resp.json()
             except requests.RequestException as e:
                 if attempt < retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2 ** (attempt + 1))
                 else:
-                    print(f"[ERROR] API call failed: {endpoint} — {e}")
+                    print(f"\n[ERROR] {endpoint} — {e}")
                     return None
 
-    def _post(self, endpoint, json_data=None, retries=3):
-        """Make POST request with retries."""
+    def _post(self, endpoint, json_data=None, retries=4):
+        """Make POST request with rate limiting and 429 backoff."""
         url = f"{self.base_url}/{endpoint}"
         for attempt in range(retries):
+            self._rate_limit()
             try:
                 resp = self.session.post(url, json=json_data, timeout=30)
+                if resp.status_code == 429:
+                    wait = min(2 ** (attempt + 2), 60)
+                    time.sleep(wait)
+                    continue
                 resp.raise_for_status()
                 return resp.json()
             except requests.RequestException as e:
                 if attempt < retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2 ** (attempt + 1))
                 else:
-                    print(f"[ERROR] API POST failed: {endpoint} — {e}")
+                    print(f"\n[ERROR] POST {endpoint} — {e}")
                     return None
 
     def get_upcoming_matches(self, limit=200):

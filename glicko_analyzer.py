@@ -110,14 +110,20 @@ class GlickoAnalyzer:
 
     def __init__(self, api_client):
         self.api = api_client
+        self._history_cache = {}  # team_id → rating history
 
     def build_rating_history(self, team_id, limit=TREND_MATCHES + 3):
         """
         Build Glicko2 rating history for a team from their recent matches.
-        Returns list of (game_id, rating, rd, volatility) sorted oldest→newest.
+        Uses cache to avoid duplicate API calls for the same team.
+        Returns list of dicts sorted oldest→newest.
         """
+        if team_id in self._history_cache:
+            return self._history_cache[team_id]
+
         resp = self.api.get_team_recent_matches(team_id, limit=limit)
         if not resp or not resp.get("data"):
+            self._history_cache[team_id] = []
             return []
 
         matches = resp["data"]
@@ -158,20 +164,23 @@ class GlickoAnalyzer:
                     "volatility": vol,
                 })
 
-        # Reverse to get oldest→newest order
         history.reverse()
+        self._history_cache[team_id] = history
         return history
 
-    def analyze_match(self, game_id):
+    def analyze_match(self, game_id, cached_glicko=None):
         """
         Full analysis for a single upcoming match.
+        Uses cached_glicko if available (from pre-filter phase).
         Returns dict with signals and confidence.
         """
-        glicko_resp = self.api.get_glicko(game_id)
-        if not glicko_resp or not glicko_resp.get("data"):
-            return None
-
-        data = glicko_resp["data"]
+        if cached_glicko:
+            data = cached_glicko
+        else:
+            glicko_resp = self.api.get_glicko(game_id)
+            if not glicko_resp or not glicko_resp.get("data"):
+                return None
+            data = glicko_resp["data"]
         fixture = data.get("fixture", {})
         glicko = data.get("glicko", {})
 

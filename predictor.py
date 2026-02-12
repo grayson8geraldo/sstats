@@ -17,12 +17,12 @@ import argparse
 import json
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from api_client import SStatsAPI
 from glicko_analyzer import GlickoAnalyzer
 from stats_validator import StatsValidator
-from config import TIMEZONE, MIN_CONFIDENCE
+from config import TIMEZONE, MIN_CONFIDENCE, MAX_RD
 
 
 def get_target_date(args):
@@ -30,9 +30,8 @@ def get_target_date(args):
     if args.date:
         return args.date
     if args.today:
-        return datetime.utcnow().strftime("%Y-%m-%d")
-    # Default: tomorrow
-    tomorrow = datetime.utcnow() + timedelta(days=1)
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
     return tomorrow.strftime("%Y-%m-%d")
 
 
@@ -47,7 +46,6 @@ def fetch_matches(api, target_date, league_id=None):
 
     resp = api.get_matches_by_date(target_date)
     if not resp or not resp.get("data"):
-        # Fallback: try upcoming
         print("[*] No matches on exact date, trying upcoming...")
         resp = api.get_upcoming_matches(limit=300)
 
@@ -69,15 +67,55 @@ def fetch_matches(api, target_date, league_id=None):
         ]
 
     # Filter out already finished/cancelled matches
-    active_statuses = {1, 2}  # Not announced, Not started
+    active_statuses = {1, 2}
     matches = [m for m in matches if m.get("status") in active_statuses or m.get("status") is None]
 
     print(f"[+] Found {len(matches)} upcoming matches for {target_date}")
     return matches
 
 
+def prefilter_matches(api, matches):
+    """
+    Quick pre-filter: fetch Glicko2 for each match (1 API call each),
+    keep only matches where both teams have reliable ratings (low RD).
+    This avoids expensive history-building for hopeless matches.
+    """
+    print(f"[*] Pre-filtering: checking Glicko2 data for {len(matches)} matches...")
+
+    filtered = []
+    for i, match in enumerate(matches, 1):
+        game_id = match.get("id")
+        home = match.get("homeTeam", {}).get("name", "?")
+        away = match.get("awayTeam", {}).get("name", "?")
+
+        pct = i * 100 // len(matches)
+        print(f"\r[*] Pre-filter: {i}/{len(matches)} ({pct}%) — {home} vs {away}   ", end="", flush=True)
+
+        glicko_resp = api.get_glicko(game_id)
+        if not glicko_resp or not glicko_resp.get("data"):
+            continue
+
+        glicko = glicko_resp["data"].get("glicko")
+        if not glicko:
+            continue
+
+        home_rd = glicko.get("homeRd", 999)
+        away_rd = glicko.get("awayRd", 999)
+
+        # Skip teams with unreliable ratings
+        if home_rd > MAX_RD or away_rd > MAX_RD:
+            continue
+
+        # Store glicko data for later use
+        match["_glicko_data"] = glicko_resp["data"]
+        filtered.append(match)
+
+    print(f"\n[+] Pre-filter done: {len(filtered)}/{len(matches)} matches have reliable Glicko2 data")
+    return filtered
+
+
 def analyze_matches(api, matches, max_matches=None):
-    """Analyze each match and collect predictions."""
+    """Analyze pre-filtered matches and collect predictions."""
     analyzer = GlickoAnalyzer(api)
     validator = StatsValidator(api)
 
@@ -93,21 +131,20 @@ def analyze_matches(api, matches, max_matches=None):
         away = match.get("awayTeam", {}).get("name", "?")
         league = match.get("season", {}).get("league", {}).get("name", "?")
 
-        print(f"\r[*] Analyzing {i}/{total}: {home} vs {away} ({league})...", end="", flush=True)
+        print(f"\r[*] Deep analysis {i}/{total}: {home} vs {away} ({league})   ", end="", flush=True)
 
         try:
-            analysis = analyzer.analyze_match(game_id)
+            # Pass cached glicko data to avoid extra API call
+            analysis = analyzer.analyze_match(game_id, cached_glicko=match.get("_glicko_data"))
             if analysis and analysis.get("signals"):
                 analysis = validator.validate_signals(analysis)
                 if analysis.get("signals"):
                     predictions.append(analysis)
+                    print(f" -> {len(analysis['signals'])} signal(s)!", flush=True)
         except Exception as e:
             print(f"\n[!] Error analyzing {game_id}: {e}")
 
-        # Rate limiting — be respectful
-        time.sleep(0.3)
-
-    print()  # New line after progress
+    print(f"\n[+] Analysis complete. API requests used: {api.request_count}")
     return predictions
 
 
@@ -124,7 +161,6 @@ def print_predictions_table(predictions):
         print("    This means no matches had clear Glicko2 trend patterns.")
         return
 
-    # Sort by best confidence
     all_signals = []
     for pred in predictions:
         for sig in pred["signals"]:
@@ -186,7 +222,6 @@ def print_predictions_table(predictions):
     print(f"  Min confidence: {MIN_CONFIDENCE:.0%}")
     print(f"{'='*80}\n")
 
-    # Risk disclaimer
     print("  DISCLAIMER: This is a statistical tool, not financial advice.")
     print("  Past performance does not guarantee future results.")
     print("  Always bet responsibly and only with money you can afford to lose.\n")
@@ -219,7 +254,7 @@ def main():
     parser.add_argument("--date", type=str, help="Specific date (YYYY-MM-DD)")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument("--league", type=int, help="Filter by league ID")
-    parser.add_argument("--max", type=int, help="Max matches to analyze")
+    parser.add_argument("--max", type=int, help="Max matches to deep-analyze")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     args = parser.parse_args()
 
@@ -231,6 +266,13 @@ def main():
     if not matches:
         sys.exit(0)
 
+    # Phase 1: Quick pre-filter (1 API call per match)
+    matches = prefilter_matches(api, matches)
+    if not matches:
+        print("[!] No matches passed the pre-filter (all had high RD or no Glicko2 data).")
+        sys.exit(0)
+
+    # Phase 2: Deep analysis (builds rating history — ~10 calls per team, cached)
     predictions = analyze_matches(api, matches, max_matches=args.max)
 
     if args.json:
