@@ -1,0 +1,2892 @@
+SStats.net API - Начало работы
+22.06.2025 14:140 comments
+SStats.net использует протокол REST API для взаимодействия. В ответе возвращается либо json, либо csv.
+
+Основной адрес: https://api.sstats.net
+Ссылка для передачи в ИИ: https://sstats.net/llms.txt Подробнее об интеграции с ИИ
+Авторизация и лимиты
+SStats.net API не требует авторизации. API доступно без регистрации и api ключа. Но у открытого досутпа существует ограничения на количество запросв. Это сделано для предотвращения ddos атак и возможности равномерного распредения квот между всеми пользователями.
+Для обеспечения стабильного доступа с расширенными лимитами рекомендуется зарегистрироваться и получить бесплатный индивидуальный API ключ.
+
+➔ Читайте инструкцию как получить API ключ и использовать его в запросах
+
+Отправной точкой для работы с API может послужить получение всего списка лиг
+
+1. Получение списка доступных лиг
+
+Познакомьтесь с нашим Coverage. Данный запрос возвращает все имеющиеся лиги, страны, сезоны.
+Используйте иденитфикаторы лиг и сезонов для извлечения матчей.
+
+https://api.sstats.net/leagues
+
+GET /Leagues
+Пример ответа:
+
+{
+  "status": "ok",
+  "data": [
+    {
+      "id": 39,
+      "name": "Premier League",
+      "country": {"code": "EN", "name": "England"},
+      "seasons": [...]
+    }
+  ]
+}
+Далее можно перейти к получению списка матчей.
+
+2. Загрузка матчей лиги за сезон
+
+Этот запрос является основным, для получения списка матчей. Поддерживаются различные фильтры, по лигам, командам, дням и т.д
+Для начала можно извлечь все матчи за сезон. Идентификаторы лиги и сезона мы узнали из предыдущего запроса.
+
+https://api.sstats.net/Games/list?leagueid=39&year=2024
+
+GET /Games/list?leagueid=39&year=2024
+Параметры:
+
+leagueid - ID лиги из предыдущего запроса
+year - год сезона
+limit - количество матчей (до 1000)
+offset - смещение для пагинации
+Примечание: Запрос не возвращает полную инфомрацию о матчах и является лишь кратким перечислением.
+Подробную информацию необходимо запрашивать отдельным запросом для каждого матча
+
+Подробную инструкцию по настройке фильтров читайте ➔ здесь
+
+Дополнительные фильтры:
+
+# Только завершенные матчи
+GET /Games/list?leagueid=39&year=2024&ended=true
+
+# Матчи конкретной команды
+GET /Games/list?team=529&year=2024
+
+# Матчи за определенный период
+GET /Games/list?leagueid=39&from=2024-01-01&to=2024-01-31
+https://api.sstats.net/Games/list?leagueid=39&year=2024&ended=true
+
+3. Получение детальной информации о матче
+
+А вот и главный запрос для получения подробных данных по матчу.
+Запрос содержит самые актуальные на данный момент данные по матчу (кроме коэффициентов, они всегда доматчевые)
+
+https://api.sstats.net/Games/971762
+
+GET /Games/{id}
+Возвращает:
+
+Полную информацию о матче
+Составы команд и статистику игроков
+События матча (голы, карточки, замены)
+Детальную статистику команд
+Доматчевые коэффициенты
+Если матч находится в лайве, то самые актуальные данные (статистика, события) будут в этом запросе. Кроме коэффициенов. Даже если матч идёт в лайве, коэффициенты будут доматчевые (самые последние, перед началом матча)
+Т.к коэффициентов и букмекеров много, они вынесены в отдельный запрос.
+Получение лайв коэффициентов, так же в отдельном запросе
+
+4. Получение коэффициентов матча
+
+https://api.sstats.net/Odds/1350725
+
+# Доматчевые коэффициенты (доступны коэффициенты открытия и закрытия)
+GET /Odds/{gameId}
+
+# Live-коэффициенты
+GET /Odds/live/{gameId}
+
+# Коэффициенты конкретного букмекера
+GET /Odds/{gameId}?bookmakerId=4
+
+# история движения коэффициентов в лайве
+GET /oods/live-changes/{gameId}
+5. Анализ с помощью Glicko 2
+
+https://api.sstats.net/Games/glicko/1350725
+
+GET /Games/glicko/{gameId}
+Возвращает рейтинги команд и прогнозируемые вероятности побед на основе математической модели Glicko 2.
+
+6. Анализ прибыльности стратегий
+
+https://api.sstats.net/Games/profits?gameId=1350725&limit=25&thisLeague=true
+
+GET /Games/profits?gameId={id}&limit=25
+Показывает историческую прибыльность различных типов ставок для команд на основе их предыдущих матчей.
+
+
+
+v0.9.13.0
+OAS 3.1.1
+SStats.net - Football API
+Поддержка
+
+Download OpenAPI Document
+
+Download OpenAPI Document
+API футбольных матчей, доматчевые и live коэффициенты, статистика, профиты, Glicko 2
+
+Весь функционал API бесплатен, с ограничением по количеству запросов. Без api ключа ограничение 300 в минуту запросов на всех пользователей, или 30 запросов в минуту на 1 IP адрес.
+
+Введение в API
+Server
+Server:
+https://api.sstats.net
+SStats.net API
+
+Authentication
+Select Auth Type
+No authentication selected
+Client Libraries
+Shell Curl
+Аккаунт ​Copy link
+Аккаунт
+
+Данные об аккаунте и API токена
+
+Требуется авторизация по API ключу
+
+Инструкция по авторизации
+Аккаунт Operations
+GET
+/Account/Info
+Аккаунт​Copy link
+Получение данных о текущем авторизированном пользователе
+Responses
+
+200
+application/json
+Request Example for GET/Account/Info
+Shell Curl
+
+curl 'https://api.sstats.net/Account/Info?apikey=YOUR_SECRET_TOKEN'
+
+Test Request
+(get /Account/Info)
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": {
+    "userName": "string",
+    "apiKey": "string"
+  },
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+Excel таблицы ​Copy link
+Excel таблицы
+
+Данные запросы используются в таблицах Excel, получивших популярность в народе, предназначенных для анализа предсказания футбольных матчей. Оригинальные таблицы были модифицированы, заменив парсер сайта Flashscore.com на API sstats.net
+
+Это API так же может быть полезно для использования в других таблицах
+Excel таблицы Operations
+GET
+/Excel/Delux
+GET
+/Excel/FootballCalc
+GET
+/Excel/Results
+Delux​Copy link
+Запрос используется в excel таблице для прогнозирования футбольных матчей DeluX_API-based. Эта таблица является модификацией таблицы DeluX_plus IncoProrok.xlsm, в которой парсер сайта Flashscore заменен на API сайта sstats.net
+
+Запрос за раз выгружает все необходимые данные, которая требует таблица для анализа матча
+
+Подробнее о таблице и использованию запроса в руководстве Excel Delux
+
+Для получения данных по конкретному матчу необходимо указать gameId Для получения данных за день, необходимо указать dayOffset
+Query Parameters
+gameIdCopy link to gameId
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+Signed 32-bit integers (commonly used integer type).
+dayOffsetCopy link to dayOffset
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+-1000
+max:  
+30
+default: 
+0
+День. 0 - сегодня, -1 - вчера, -2 - позавчера, 1 - завтра, 2 - после завтра и т.д. Диапазон: [-1000, 30]
+timeZoneCopy link to timeZone
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+-12
+max:  
+12
+default: 
+3
+Часовой пояс
+Responses
+
+200
+text/plain
+Request Example for GET/Excel/Delux
+Shell Curl
+
+curl https://api.sstats.net/Excel/Delux
+
+Test Request
+(get /Excel/Delux)
+Football calculation​Copy link
+Запрос, используемой в excel таблице для прогнозирования матчей football-calculation-table_API-based.xlsb
+
+Эта таблица является модифицированной версией football-calculation-table-v.2.1-by-kish.xlsb
+
+Для получения данных по конкретному матчу необходимо указать gameId Для получения данных за день, необходимо указать dayOffset
+Query Parameters
+gameIdCopy link to gameId
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+Идентифиатор матча sstats.net
+dayOffsetCopy link to dayOffset
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+-1000
+max:  
+30
+default: 
+0
+День. 0 - сегодня, -1 - вчера, -2 - позавчера, 1 - завтра, 2 - после завтра и т.д. Диапазон: [-1000, 30]
+timeZoneCopy link to timeZone
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+-12
+max:  
+12
+default: 
+3
+Часовой пояс
+Responses
+200Copy link to 200
+Request Example for GET/Excel/FootballCalc
+Shell Curl
+
+curl https://api.sstats.net/Excel/FootballCalc
+
+Test Request
+(get /Excel/FootballCalc)
+Результаты​Copy link
+Извлечение результатов матчей
+
+Ответ содержит таблицу
+Id,Date,HomeHalfTimeScore,AwayHalfTimeScore,HomeFullTimeScore,AwayFullTimeScore,Ended
+Query Parameters
+idCopy link to id
+Type: string
+список матчей через запятую. Максимум 500 значений
+headerCopy link to header
+Type: boolean
+default: 
+true
+Включить заголовок в ответ
+Responses
+
+200
+text/plain
+Request Example for GET/Excel/Results
+Shell Curl
+
+curl https://api.sstats.net/Excel/Results
+
+Test Request
+(get /Excel/Results)
+Матчи ​Copy link
+Матчи
+
+Новые матчи добавляются несколько раз в день. Обновление доматчевой информации по конкретному матчу происходит раз в 3 часа
+Матчи Operations
+GET
+/Games/list
+GET
+/Games/{id}
+GET
+/Games/glicko/{id}
+POST
+/Games/query-games
+POST
+/Games/query
+GET
+/Games/season-table
+GET
+/Games/last-games-stats
+GET
+/Games/text-summary
+GET
+/Games/profits
+GET
+/Games/injuries
+Список матчей​Copy link
+Извлечение списка матчей. Данные о каждом матче возвращаются в сокращенном варианте (Id, время, статус, счет, названия команд их их ID, сезон, тур, коэффициенты).
+Коэффициенты в сокращенном варианте: 1X2, Total. (на момент ближе к закрытию линии)
+
+Для получения полной информации о конкретном матче используется /games/{id}
+
+Одним запросом можно извлечь не более 1000 матчей. Чтобы извлечь остальные, нужно использовать несколько запросов, увеличивая &offset=N.
+
+Например:
+&offset=0&limit=10 - отобразит первые 10 матчей
+&offset=10&limit=10 - отобразит следующие 10 матчей (пропуская первые 10)
+
+Примеры:
+
+Извлечение всех матчей по id лиги и году сезона
+https://api.sstats.net/games/list?leagueid=183&year=2022
+
+Извлечение всех матчей по id сезона 1DC9CB60-0958-11EE-B462-879841420925
+https://api.sstats.net/games/list?seasonUid=1DC9CB60-0958-11EE-B462-879841420925
+
+Извлечение всех матчей по id лиги и временному интервалу
+https://api.sstats.net/games/list?leagueid=183&from=2022-10-30&to=2022-12-30
+
+Предстоящие матчи команды
+https://api.sstats.net/games/list?upcoming=true&team=529
+
+Прошедшие матчи между командами когда они играли друг с другом (Head 2 Head)
+https://api.sstats.net/games/list?ended=true&bothTeams=529,541
+Query Parameters
+IdCopy link to Id
+Type: string
+Pattern: ^\d+(?:,\d+)*$
+Example
+Id матча. Один или несколько через запятую.
+FlashIdCopy link to FlashId
+Type: string
+Pattern: ^\w+(?:,\w+)*$
+Id матча c Flashscore. Один или несколько через запятую. "vyHkOT87,SYAMaLNi"
+LeagueIdCopy link to LeagueId
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+1
+max:  
+2147483647
+Example
+Id лиги Список лиг можно получить через /leagues
+SeasonUidCopy link to SeasonUid
+Type: string
+Format: uuid
+Example
+Уникальный идентификатор сезона
+YearCopy link to Year
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+2011
+max:  
+2070
+Example
+Год сезона
+DateCopy link to Date
+Type: string
+Format: date
+Конкретная дата. В выборку будут включены все матчи за выбранный день. Чтобы указать часовой пояс, используйте параметр TimeZone. "2025-06-02"
+FromCopy link to From
+Type: string
+Example
+Начальная дата. Если указана только дата без времени, то будут включены все матчи за текущую дату, начиная с полуночи. Если не указывается время с часовым поясом (2025-06-17T14:23:30+02:00), то часовой пояс необходимо передать отдельно в параметре TimeZone Дата + время + часовой пояс: 2025-06-17T14:23:30+02:00 Дата + время: 2025-06-17T14:23:30 Дата + время (без секунд): 2025-06-17T14:23 Дата: 2025-06-17
+ToCopy link to To
+Type: string
+Example
+Конечная дата. Фильтруются все матчи строго до этой даты. Если указана только дата, без времени, то в выборку включаются все матчи до полуночи указанной даты. Для всех дат, где не указан часовой пояс (+02:00) необходимо указать часовой пояс отдельно в параметре TimeZone Например: если To = 2025-06-02, то в выборку попадут все матчи до 2025-06-02 00:00:00. Т.е матчи за само 2025-06-02 уже выборку не попадают Дата + время + часовой пояс: 2025-06-17T14:23:30+02:00 Дата + время: 2025-06-17T14:23:30 Дата + время (без секунд): 2025-06-17T14:23 Дата: 2025-06-17
+StatusCopy link to Status
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: uint8
+min:  
+1
+max:  
+20
+Example
+Статус (см таблицу статусов)
+HomeTeamCopy link to HomeTeam
+Type: string
+Pattern: ^\d+(?:,\d+)*$
+Id команды хозяев (один, или несколько через запятую) "18047,8045"
+AwayTeamCopy link to AwayTeam
+Type: string
+Pattern: ^\d+(?:,\d+)*$
+Id команды гостей (один, или несколько через запятую) "18047,8045"
+TeamCopy link to Team
+Type: string
+Pattern: ^\d+(?:,\d+)*$
+Id одной из команд (один, или несколько через запятую). Если указано несколько Id, то выборку попадут все матчи, где хотя бы одна из команд в это списке"18047,8045"
+BothTeamsCopy link to BothTeams
+Type: string
+Pattern: ^\d+,\d+$
+Id двух команд через запятую. Матчи двух команд между собой "18047,8045"
+EndedCopy link to Ended
+Type: boolean
+Завершенные матчи (8, 9, 10, 17, 18). Учитывается только True, False не учитывается
+LiveCopy link to Live
+Type: boolean
+Лайв матчи (статусы 3, 4, 5, 6, 7, 11, 18, 19). Учитывается только True, False не учитывается
+UpcomingCopy link to Upcoming
+Type: boolean
+Предстоящие матчи (дата начала матча больше текущего времени + статус: 1,2). Учитывается только True, False не учитывается
+TodayCopy link to Today
+Type: boolean
+Матчи за сегодня. Учитывается только True, False не учитывается
+OffsetCopy link to Offset
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+0
+max:  
+2147483647
+Пропустить указанное количество матчей от начала выборки. По умолчанию = 0 Количество матчей выводимое за раз ограничено лимитом 1000 матчей. Чтобы извлечь остальные матчи, используется Offset c указанием количества, которое надо пропустить offset=2000 - пропустить первые 2000 матчей и получить следущие 1000 2000
+LimitCopy link to Limit
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+1
+max:  
+1000
+Ограничить выборку указанным количеством матчей (от 1 до 1000)
+OrderCopy link to Order
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+-1
+max:  
+1
+Example
+Сортировать по убыванию (Order=-1) или по возрастанию (Order=1) даты начала матча
+TimeZoneCopy link to TimeZone
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+-12
+max:  
+12
+default: 
+3
+Example
+Ваш часовой пояс (от -12 до 12). По умолчанию = 3
+Responses
+
+200
+OK
+application/json
+
+400
+Bad Request
+application/json
+Request Example for GET/Games/list
+Shell Curl
+
+curl https://api.sstats.net/Games/list
+
+Test Request
+(get /Games/list)
+STATUS: 200
+STATUS: 400
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": [
+    {
+      "id": 1,
+      "flashId": null,
+      "date": null,
+      "dateUtc": null,
+      "status": null,
+      "periods": [
+        "2026-02-12T13:40:16.925Z"
+      ],
+      "statusName": null,
+      "elapsed": null,
+      "extraMinutes": null,
+      "homeResult": null,
+      "awayResult": null,
+      "homeHTResult": null,
+      "awayHTResult": null,
+      "homeFTResult": null,
+      "awayFTResult": null,
+      "homeTeam": {
+        "id": 1,
+        "name": "string",
+        "flashId": null,
+        "logoUrl": null,
+        "country": {
+          "code": "string",
+          "name": "string"
+        }
+      },
+      "awayTeam": {
+        "id": 1,
+        "name": "string",
+        "flashId": null,
+        "logoUrl": null,
+        "country": {
+          "code": "string",
+          "name": "string"
+        }
+      },
+      "season": {
+        "uid": "123e4567-e89b-12d3-a456-426614174000",
+        "year": 1,
+        "league": {
+          "id": 1,
+          "name": "string",
+          "country": {
+            "code": "string",
+            "name": "string"
+          },
+          "flashScoreId": null
+        }
+      },
+      "roundName": null,
+      "odds": [
+        {
+          "marketId": 1,
+          "marketName": "string",
+          "odds": [
+            {
+              "name": "string",
+              "value": 1,
+              "openingValue": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+OK
+Данные матча​Copy link
+Получить полные данные о конкретном матче.
+
+Можно передать как числовой Id, использующийся в SStats.net так и строковый Id с Flashscore.com
+
+Полные данные о матче, включая:
+
+основная информация о матче (команды, счёт, статус, время)
+статистика матча (удары, владение мячом, угловые и т.д.)
+стартовые составы и тактические схемы команд
+список игроков в составах с позициями
+индивидуальная статистика игроков
+события матча (голы, замены, карточки)
+информация о стадионе, судье
+доматчевые коэффициенты закрытия в сокращенном варианте. (Все коэффициенты здесь)
+Частота обновления данных
+
+Тип матча	Частота обновления
+Лайв (идущие сейчас)	каждую минуту
+Недавние (последние сутки)	каждые 15 минут
+Доматчевые (до 30 дней назад)	раз в сутки
+Статусы матча
+
+Код	Описание
+1	Дата матча ещё не объявлена
+2	Матч ещё не начался
+3	Начало первого тайма
+4	Перерыв между таймами
+5	Начало второго тайма
+6	Дополнительное время
+7	Идёт серия пенальти
+8	Матч завершён
+9	Матч завершён после доп. времени
+10	Матч завершён после серии пенальти
+11	Перерыв в дополнительном времени
+12	Матч приостановлен
+13	Матч прерван
+14	Матч перенесён
+15	Матч отменён
+17	Техническое поражение
+18	Победа без игры (соперник не явился)
+19	Матч в процессе
+Path Parameters
+idCopy link to id
+Type: string
+required
+sstats.net ID или Flashscore ID
+Responses
+
+200
+OK
+application/json
+
+400
+Bad Request
+application/json
+Request Example for GET/Games/{id}
+Shell Curl
+
+curl 'https://api.sstats.net/Games/{id}'
+
+Test Request
+(get /Games/{id})
+STATUS: 200
+STATUS: 400
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": {
+    "game": {
+      "id": 1,
+      "flashId": null,
+      "date": null,
+      "dateUtc": null,
+      "status": null,
+      "periods": [
+        "2026-02-12T13:40:16.925Z"
+      ],
+      "statusName": null,
+      "elapsed": null,
+      "extraMinutes": null,
+      "homeResult": null,
+      "awayResult": null,
+      "homeHTResult": null,
+      "awayHTResult": null,
+      "homeFTResult": null,
+      "awayFTResult": null,
+      "homeTeam": {
+        "id": 1,
+        "name": "string",
+        "flashId": null,
+        "logoUrl": null,
+        "country": {
+          "code": "string",
+          "name": "string"
+        }
+      },
+      "awayTeam": {
+        "id": 1,
+        "name": "string",
+        "flashId": null,
+        "logoUrl": null,
+        "country": {
+          "code": "string",
+          "name": "string"
+        }
+      },
+      "season": {
+        "uid": "123e4567-e89b-12d3-a456-426614174000",
+        "year": 1,
+        "league": {
+          "id": 1,
+          "name": "string",
+          "country": {
+            "code": "string",
+            "name": "string"
+          },
+          "flashScoreId": null
+        }
+      },
+      "roundName": null,
+      "odds": [
+        {
+          "marketId": 1,
+          "marketName": "string",
+          "odds": [
+            {
+              "name": "string",
+              "value": 1,
+              "openingValue": null
+            }
+          ]
+        }
+      ]
+    },
+    "statistics": {
+      "shotsOnGoalHome": null,
+      "shotsOnGoalAway": null,
+      "shotsOffGoalHome": null,
+      "shotsOffGoalAway": null,
+      "totalShotsHome": null,
+      "totalShotsAway": null,
+      "blockedShotsHome": null,
+      "blockedShotsAway": null,
+      "shotsInsideBoxHome": null,
+      "shotsInsideBoxAway": null,
+      "...": "[Additional Properties Truncated]"
+    },
+    "lineups": {
+      "homeFormation": null,
+      "awayFormation": null,
+      "homeCoach": {
+        "id": null,
+        "name": "string"
+      },
+      "awayCoach": {
+        "id": null,
+        "name": "string"
+      }
+    },
+    "lineupPlayers": [
+      {
+        "teamId": 1,
+        "playerId": null,
+        "playerName": "string",
+        "number": null,
+        "position": null,
+        "grid": "string",
+        "startXI": null
+      }
+    ],
+    "playerStats": [
+      {
+        "playerId": 1,
+        "minutes": null,
+        "capitan": null,
+        "substitute": null,
+        "offsides": null,
+        "shotsTotal": null,
+        "shotsOn": null,
+        "goalsTotal": null,
+        "goalsConceded": null,
+        "goalsAssists": null,
+        "...": "[Additional Properties Truncated]"
+      }
+    ],
+    "events": [
+      {
+        "id": 1,
+        "teamId": 1,
+        "elapsed": 1,
+        "extra": null,
+        "type": 1,
+        "name": "string",
+        "player": {
+          "id": null,
+          "name": "string"
+        },
+        "assistPlayer": {
+          "id": null,
+          "name": "string"
+        }
+      }
+    ],
+    "venue": {
+      "name": null,
+      "address": null,
+      "city": null,
+      "capacity": null
+    },
+    "refereeName": null
+  },
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+OK
+Glicko 2​Copy link
+Рейтинг Glicko 2 и предсказание вероятностей победы команд
+Path Parameters
+idCopy link to id
+Type: string
+required
+Id матча. Sstats Id в виде числа или Flashscore Id в виде строки
+Responses
+
+200
+application/json
+Request Example for GET/Games/glicko/{id}
+Shell Curl
+
+curl 'https://api.sstats.net/Games/glicko/{id}'
+
+Test Request
+(get /Games/glicko/{id})
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": {
+    "fixture": {
+      "id": 1,
+      "flashId": null,
+      "date": null,
+      "dateUtc": null,
+      "status": null,
+      "periods": [
+        "2026-02-12T13:40:16.925Z"
+      ],
+      "statusName": null,
+      "elapsed": null,
+      "extraMinutes": null,
+      "homeResult": null,
+      "awayResult": null,
+      "homeHTResult": null,
+      "awayHTResult": null,
+      "homeFTResult": null,
+      "awayFTResult": null,
+      "homeTeam": {
+        "id": 1,
+        "name": "string",
+        "flashId": null,
+        "logoUrl": null,
+        "country": {
+          "code": "string",
+          "name": "string"
+        }
+      },
+      "awayTeam": {
+        "id": 1,
+        "name": "string",
+        "flashId": null,
+        "logoUrl": null,
+        "country": {
+          "code": "string",
+          "name": "string"
+        }
+      },
+      "season": {
+        "uid": "123e4567-e89b-12d3-a456-426614174000",
+        "year": 1,
+        "league": {
+          "id": 1,
+          "name": "string",
+          "country": {
+            "code": "string",
+            "name": "string"
+          },
+          "flashScoreId": null
+        }
+      },
+      "roundName": null,
+      "odds": [
+        {
+          "marketId": 1,
+          "marketName": "string",
+          "odds": [
+            {
+              "name": "string",
+              "value": 1,
+              "openingValue": null
+            }
+          ]
+        }
+      ]
+    },
+    "glicko": {
+      "homeRating": 1,
+      "homeRd": 1,
+      "awayRating": 1,
+      "awayRd": 1,
+      "homeXg": null,
+      "awayXg": null,
+      "homeWinProbability": null,
+      "awayWinProbability": null,
+      "updated": "2026-02-12T13:40:16.925Z",
+      "homeVolatility": 1,
+      "awayVolatility": 1
+    }
+  },
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+Расширенный поиск (OLD)​Copy link
+Устарело и будет удалено в будущем. Используйте /games/query
+
+Извлечение матчей на основе сложных многоуровневых логических условий.
+
+Условие использует SQL подобный синтаксис
+
+Условие представляет собой комбинацию логических выражений, которые в свою очередь состоят из полей и математических знаков.
+
+Пример условия:
+League = 39 AND (Year = 2023 OR Year = 2024) AND Winner1 > 1.1 AND Winner1 <= 1.3
+Этот запрос выводит все матчи лиги с идентификатором 30 (Английская премьер лига) в сезонах 2023 и 2024, у которых коэффициент на победу команды хозяев находится в промежутке от 1.1 до 1.3 (включительно)
+
+Field настраивает выводимые поля
+Order настраивает поля сортировки
+
+Запрос отправляется в формате POST c типом application/json, в теле которого содержится json с указанным объектом
+
+Подробное руководство по продвинутым запросам ➔ Перейти
+
+Пример содержимого body запроса:
+
+{
+    "Condition" : "League = 39 AND (Year = 2023 OR Year = 2024) AND Winner1 > 1.1 AND Winner1 <= 1.3",
+    "Fields" : ["Id","Date","HomeTeamName","AwayTeamName","ScoreHomeFT","ScoreAwayFT", "Winner1", "WinnerX", "Winner2"],
+    "Format" : "csv"
+}
+Body
+required
+Selected Content Type:
+application/json
+conditionCopy link to condition
+Type: string
+required
+Example
+Условие фильтра
+fieldsCopy link to fields
+Type: null,array string
+Example
+Поля для вывода (json массив)
+formatCopy link to format
+Type: null | string
+default: 
+"json"
+Формат вывода: csv, json
+limitCopy link to limit
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+1
+max:  
+1000
+Signed 32-bit integers (commonly used integer type).
+offsetCopy link to offset
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+0
+max:  
+2147483647
+Смещение выборки от начала
+orderCopy link to order
+Type: null | string
+default: 
+"Date"
+Поле по которому будет сортировка. Если необходима сортировка по убыванию, то перед полем необходимо выставить '-' По умолчанию по времени начала матча, по возрастанию. Пример: -Date - сортировка по убыванию времени начала матча "-Date"
+timezoneCopy link to timezone
+Type: null | integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+-12
+max:  
+12
+default: 
+3
+Example
+Временная зона
+Responses
+
+200
+Selected Content Type:
+application/json
+Request Example for POST/Games/query-games
+Shell Curl
+
+curl https://api.sstats.net/Games/query-games \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "condition": "League = 41 AND Year = 2023",
+  "fields": [
+    "Id",
+    "HomeTeamName",
+    "AwayTeamName",
+    "Date"
+  ],
+  "format": "json",
+  "timezone": 3,
+  "order": "Date",
+  "offset": 0,
+  "limit": 1
+}'
+
+Test Request
+(post /Games/query-games)
+Расширенный поиск​Copy link
+Извлечение матчей на основе сложных многоуровневых логических условий.
+
+Условие использует SQL подобный синтаксис. Сложные выражения поддерживаются в выводимых полях (Fields), в условии (Condition) и сортировке (Order)
+
+Подробное руководство
+
+Пример условия:
+League = 39 AND (Year = 2023 OR Year = 2024) AND Winner1 > 1.1 AND Winner1 <= 1.3
+Этот запрос выводит все матчи лиги с идентификатором 30 (Английская премьер лига) в сезонах 2023 и 2024, у которых коэффициент на победу команды хозяев находится в промежутке от 1.1 до 1.3 (включительно)
+
+Field настраивает выводимые поля
+Order настраивает поля сортировки
+
+Запрос отправляется в формате POST c типом application/json, в теле которого содержится json с указанным объектом
+
+Подробное руководство по продвинутым запросам ➔ Перейти
+
+Пример содержимого body запроса:
+
+{
+    "Condition" : "League = 39 AND (Year = 2023 OR Year = 2024) AND Winner1 > 1.1 AND Winner1 <= 1.3",
+    "Fields" : ["Id","Date","HomeTeamName","AwayTeamName","ScoreHomeFT","ScoreAwayFT", "Winner1", "WinnerX", "Winner2"],
+    "Order" : "Date DESC"
+    "Format" : "csv"
+}
+Query Parameters
+timeZoneCopy link to timeZone
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+default: 
+3
+Signed 32-bit integers (commonly used integer type).
+Body
+required
+Selected Content Type:
+application/json
+conditionCopy link to condition
+Type: string
+required
+Example
+Условие фильтра
+fieldsCopy link to fields
+Type: null,array string
+Example
+Поля для вывода (json массив)
+formatCopy link to format
+Type: null | string
+default: 
+"json"
+Формат вывода: csv, json
+limitCopy link to limit
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+1
+max:  
+1000
+Signed 32-bit integers (commonly used integer type).
+offsetCopy link to offset
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+0
+max:  
+2147483647
+Смещение выборки от начала
+orderCopy link to order
+Type: null | string
+default: 
+"Date"
+Поле по которому будет сортировка. Если необходима сортировка по убыванию, то перед полем необходимо выставить '-' По умолчанию по времени начала матча, по возрастанию. Пример: -Date - сортировка по убыванию времени начала матча "-Date"
+timezoneCopy link to timezone
+Type: null | integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+-12
+max:  
+12
+default: 
+3
+Example
+Временная зона
+Responses
+
+200
+Selected Content Type:
+application/json
+Request Example for POST/Games/query
+Shell Curl
+
+curl https://api.sstats.net/Games/query \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "condition": "League = 41 AND Year = 2023",
+  "fields": [
+    "Id",
+    "HomeTeamName",
+    "AwayTeamName",
+    "Date"
+  ],
+  "format": "json",
+  "timezone": 3,
+  "order": "Date",
+  "offset": 0,
+  "limit": 1
+}'
+
+Test Request
+(post /Games/query)
+Таблица сезона​Copy link
+Возвращает турнирную таблицу указанной лиги за выбранный сезон.
+
+Таблица формируется на основе результатов завершенных матчей и включает статистику команд:
+
+Позицию в турнире
+Количество игр, побед, ничьих, поражений
+Забитые и пропущенные голы
+Очки и другие показатели
+Форматы ответа:
+
+JSON (по умолчанию) - структурированные данные для программного использования
+CSV - табличный формат для экспорта в Excel или другие приложения
+Дополнительные возможности:
+
+Ограничение количества записей через параметр limit
+Выбор конкретных полей для CSV через параметр fields
+Сортировка по любому полю через параметр orderField
+Доступные поля для параметра fields:
+
+Название	Описание
+TeamId	ID команды
+TeamName	Название команды
+TotalGames	Всего игр
+Wins	Победы
+Draws	Ничьи
+Loss	Поражения
+GoalsScored	Забитые голы
+GoalsMissed	Пропущенные голы
+Points	Очки
+Over25TotalGames	Игры с тоталом больше 2.5
+Under25TotalGames	Игры с тоталом меньше 2.5
+Over25TotalHomeGames	Домашние игры с тоталом больше 2.5
+Under25TotalHomeGames	Домашние игры с тоталом меньше 2.5
+Over25TotalAwayGames	Гостевые игры с тоталом больше 2.5
+Under25TotalAwayGames	Гостевые игры с тоталом меньше 2.5
+HomeGames	Домашние игры
+AwayGames	Гостевые игры
+HomeWins	Домашние победы
+AwayWins	Гостевые победы
+HomeDraws	Домашние ничьи
+AwayDraws	Гостевые ничьи
+HomeLoss	Домашние поражения
+AwayLoss	Гостевые поражения
+HomeScored	Голы в домашних играх
+AwayScored	Голы в гостевых играх
+HomeMissed	Пропущенные голы в домашних играх
+AwayMissed	Пропущенные голы в гостевых играх
+HomePoints	Очки в домашних играх
+AwayPoints	Очки в гостевых играх
+ScoreDiff	Разность голов
+ScoreDiffHome	Разность голов в домашних играх
+ScoreDiffAway	Разность голов в гостевых играх
+Rank	Место в турнирной таблице
+HomeRank	Место в домашней таблице
+Query Parameters
+leagueCopy link to league
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+required
+Идентификатор лиги/турнира
+yearCopy link to year
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+required
+Год сезона
+limitCopy link to limit
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+Максимальное количество матчей для расчета таблицы (0 = без ограничений)
+formatCopy link to format
+Type: string
+Формат ответа: "json" (по умолчанию) или "csv"
+fieldsCopy link to fields
+Type: string
+Список полей через запятую для CSV формата (например: "TeamName,Points,Wins")
+orderFieldCopy link to orderField
+Type: string
+Поле для сортировки. Для убывающей сортировки добавьте "-" перед названием поля
+Responses
+
+200
+Selected Content Type:
+text/csv
+Request Example for GET/Games/season-table
+Shell Curl
+
+curl 'https://api.sstats.net/Games/season-table?league=1&year=1'
+
+Test Request
+(get /Games/season-table)
+Средняя статистика​Copy link
+Средняя статистические показатели по последним матчам
+Query Parameters
+gameIdCopy link to gameId
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+Id матча
+limitCopy link to limit
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+default: 
+25
+Лимит количества последних матчей (от 5 до 30). 25 - по умолчанию
+sameLeagueCopy link to sameLeague
+Type: boolean
+default: 
+false
+homeAwayCopy link to homeAway
+Type: boolean
+default: 
+false
+Responses
+
+200
+application/json
+Request Example for GET/Games/last-games-stats
+Shell Curl
+
+curl https://api.sstats.net/Games/last-games-stats
+
+Test Request
+(get /Games/last-games-stats)
+Текстовая сводка​Copy link
+Генерирует детальную текстовую сводку по футбольному матчу, включающую:
+
+Букмекерские коэффициенты на все основные исходы (победа, ничья, тоталы)
+Ожидаемые голы (xG) по оценкам букмекеров
+Анализ прибыльности различных типов ставок на основе исторических данных
+Статистику команд: проценты побед/ничьих/поражений, средние коэффициенты
+Голевую статистику: среднее количество забитых/пропущенных голов, точность прогнозов букмекеров
+Анализ основан на предыдущих матчах команд с возможностью фильтрации по лиге и типу матчей (дома/в гостях).
+Query Parameters
+idCopy link to id
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+required
+Уникальный идентификатор футбольного матча
+limitCopy link to limit
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+default: 
+25
+Лимит количества последних матчей (от 5 до 30). 25 - по умолчанию
+sameLeagueCopy link to sameLeague
+Type: boolean
+default: 
+true
+Учитывать только матчи из той же лиги что и анализируемый матч (по умолчанию true)
+homeAwayCopy link to homeAway
+Type: boolean
+default: 
+false
+Учитывать только домашние матчи для хозяев и гостевые для гостей (по умолчанию false)
+Responses
+
+200
+Текстовая сводка с детальной статистикой и коэффициентами по матчу
+Selected Content Type:
+application/json
+Request Example for GET/Games/text-summary
+Shell Curl
+
+curl 'https://api.sstats.net/Games/text-summary?id=1'
+
+Test Request
+(get /Games/text-summary)
+Калькуляция прибыли​Copy link
+Калькуляция прибыли по видам ставок
+
+Анализирует историческую прибыльность различных видов ставок для домашней и выездной команд на основе их предыдущих матчей.
+
+Метод возвращает детальную статистику по прибыльности ставок:
+
+Полный матч - анализ ставок за весь матч
+Первый тайм - анализ ставок за первую половину
+Второй тайм - анализ ставок за вторую половину
+Для каждого типа ставок показывается:
+
+Общая прибыль/убыток
+История изменения прибыли
+Количество проанализированных игр
+Количество выигрышных ставок
+Поддерживается гибкая фильтрация исторических данных для более точного анализа.
+Query Parameters
+gameIdCopy link to gameId
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+required
+Уникальный идентификатор матча для анализа
+thisLeagueCopy link to thisLeague
+Type: boolean
+default: 
+false
+Учитывать только игры в рамках той же лиги (по умолчанию: false)
+homeAwayCopy link to homeAway
+Type: boolean
+default: 
+false
+Учитывать только домашние игры для домашней команды и выездные для выездной (по умолчанию: false)
+sameGamesCopy link to sameGames
+Type: boolean
+default: 
+false
+Учитывать только игры с похожими показателями xG (expected goals) - разница не более 0.2 (по умолчанию: false)
+bookieIdCopy link to bookieId
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+Идентификатор конкретного букмекера для анализа коэффициентов (опционально)
+limitCopy link to limit
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+default: 
+25
+Максимальное количество предыдущих игр для анализа (по умолчанию: 25, диапазон: 5-100)
+Responses
+
+200
+application/json
+Request Example for GET/Games/profits
+Shell Curl
+
+curl 'https://api.sstats.net/Games/profits?gameId=1'
+
+Test Request
+(get /Games/profits)
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": {
+    "home": [
+      {
+        "market": "string",
+        "outcomes": [
+          {
+            "name": "string",
+            "profit": 1,
+            "profitHistory": [
+              1
+            ],
+            "gamesCount": 1,
+            "winCount": 1
+          }
+        ]
+      }
+    ],
+    "homeFirstHalf": [
+      {
+        "market": "string",
+        "outcomes": [
+          {
+            "name": "string",
+            "profit": 1,
+            "profitHistory": [
+              1
+            ],
+            "gamesCount": 1,
+            "winCount": 1
+          }
+        ]
+      }
+    ],
+    "homeSecondHalf": [
+      {
+        "market": "string",
+        "outcomes": [
+          {
+            "name": "string",
+            "profit": 1,
+            "profitHistory": [
+              1
+            ],
+            "gamesCount": 1,
+            "winCount": 1
+          }
+        ]
+      }
+    ],
+    "away": [
+      {
+        "market": "string",
+        "outcomes": [
+          {
+            "name": "string",
+            "profit": 1,
+            "profitHistory": [
+              1
+            ],
+            "gamesCount": 1,
+            "winCount": 1
+          }
+        ]
+      }
+    ],
+    "awayFirstHalf": [
+      {
+        "market": "string",
+        "outcomes": [
+          {
+            "name": "string",
+            "profit": 1,
+            "profitHistory": [
+              1
+            ],
+            "gamesCount": 1,
+            "winCount": 1
+          }
+        ]
+      }
+    ],
+    "awaySecondHalf": [
+      {
+        "market": "string",
+        "outcomes": [
+          {
+            "name": "string",
+            "profit": 1,
+            "profitHistory": [
+              1
+            ],
+            "gamesCount": 1,
+            "winCount": 1
+          }
+        ]
+      }
+    ]
+  },
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+Травмированные игроки​Copy link
+Игроки не заявленные на матч из-за травмы
+Query Parameters
+gameIdCopy link to gameId
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+Идентификатор матча
+Responses
+
+200
+application/json
+Request Example for GET/Games/injuries
+Shell Curl
+
+curl https://api.sstats.net/Games/injuries
+
+Test Request
+(get /Games/injuries)
+STATUS: 200
+
+
+[
+  {
+    "gameId": 1,
+    "player": {
+      "id": null,
+      "name": "string"
+    },
+    "teamId": 1,
+    "reason": null
+  }
+]
+Лиги ​Copy link
+Лиги
+
+Лиги и турниры
+Лиги Operations
+GET
+/Leagues
+Список​Copy link
+Список всех лиг и их сезонов
+Responses
+
+200
+OK
+application/json
+Request Example for GET/Leagues
+Shell Curl
+
+curl https://api.sstats.net/Leagues
+
+Test Request
+(get /Leagues)
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": [
+    {
+      "id": 1,
+      "name": "string",
+      "country": {
+        "code": "string",
+        "name": "string"
+      },
+      "flashScoreId": null,
+      "seasons": [
+        {
+          "uid": "123e4567-e89b-12d3-a456-426614174000",
+          "year": 1,
+          "league": {
+            "id": 1,
+            "name": "string",
+            "country": {
+              "code": "string",
+              "name": "string"
+            },
+            "flashScoreId": null
+          },
+          "dateStart": "2026-02-12T13:40:16.925Z",
+          "dateEnd": "2026-02-12T13:40:16.925Z",
+          "flashScoreId": null
+        }
+      ]
+    }
+  ],
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+OK
+Flashscore ​Copy link
+Flashscore
+
+Данные с сайта Flashscore
+Flashscore Operations
+GET
+/Ls/List
+GET
+/Ls/Teams
+GET
+/Ls/Leagues
+GET
+/Ls/Seasons
+GET
+/Ls/GameInfo
+Список матчей​Copy link
+Получение списка футбольных матчей с гибкими возможностями фильтрации и сортировки.
+
+Основные возможности:
+
+Поиск по конкретным матчам, лигам, сезонам и командам
+Фильтрация по временным периодам (конкретная дата или диапазон)
+Отбор матчей по статусу: завершенные, текущие (лайв) или предстоящие
+Пагинация результатов (до 1000 матчей за запрос)
+Сортировка по дате проведения матча
+Примеры использования:
+
+?Date=2025-06-21 - все матчи за конкретный день
+?From=2025-06-01&To=2025-06-30 - матчи за период
+?LeagueId=england/premier-league&Ended=true - завершенные матчи лиги
+?Team=arsenal/hA1Zm19f&Live=true - текущие матчи команды
+?BothTeams=villa/ALztxK6e,chelsea/4fGZN2oK - матчи между двумя командами
+⚠️ Обязательно укажите хотя бы один параметр фильтрации, иначе запрос будет отклонен.
+
+Статусы матча
+
+Id	Название
+1	Не начался
+45	К завершению
+42	Ожидание обновлений
+2	В прямом эфире
+12	Первый тайм
+13	Второй тайм
+6	Дополнительное время
+7	Пенальти
+46	Технический перерыв
+3	Завершён
+10	После дополнительного времени
+11	После пенальти
+9	Техническая победа
+43	Отложен
+36	Прерван
+5	Отменён
+54	Присуждён
+Query Parameters
+IdCopy link to Id
+Type: string
+max length:  
+300
+Pattern: ^\w+(?:,\w+)*$
+Example
+Id матча. Один или несколько через запятую.
+LeagueIdCopy link to LeagueId
+Type: string
+max length:  
+255
+Id лиги Список лиг можно получить через /Ls/Leagues
+SeasonIdCopy link to SeasonId
+Type: string
+Уникальный идентификатор сезона
+YearsCopy link to Years
+Type: string
+Example
+Года сезона (Например: 2024-2025)
+DateCopy link to Date
+Type: string
+Format: date
+Конкретная дата. В выборку будут включены все матчи за выбранный день. Чтобы указать часовой пояс, используйте параметр TimeZone. 2025-06-02
+FromCopy link to From
+Type: string
+Начальная дата. Если указана только дата без времени, то будут включены все матчи за текущую дату, начиная с полуночи. Если не указывается время с часовым поясом (2025-06-17T14:23:30+02:00), то часовой пояс необходимо передать отдельно в параметре TimeZone Дата + время + часовой пояс: 2025-06-17T14:23:30+02:00 Дата + время: 2025-06-17T14:23:30 Дата + время (без секунд): 2025-06-17T14:23 Дата: 2025-06-17
+ToCopy link to To
+Type: string
+Конечная дата. Фильтруются все матчи строго до этой даты. Если указана только дата, без времени, то в выборку включаются все матчи до полуночи указанной даты. Для всех дат, где не указан часовой пояс (+02:00) необходимо указать часовой пояс отдельно в параметре TimeZone Например: если To = 2025-06-02, то в выборку попадут все матчи до 2025-06-02 00:00:00. Т.е матчи за само 2025-06-02 уже выборку не попадают Дата + время + часовой пояс: 2025-06-17T14:23:30+02:00 Дата + время: 2025-06-17T14:23:30 Дата + время (без секунд): 2025-06-17T14:23 Дата: 2025-06-17
+StatusCopy link to Status
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: uint8
+Статус
+HomeTeamCopy link to HomeTeam
+Type: string
+max length:  
+300
+Pattern: ^[\w\/\-]+(?:,[\w\/\-]+)*$
+Id команды хозяев (один, или несколько через запятую) "jk-arsenal/MgkAqSU0 или jk-arsenal/MgkAqSU0,villa/ALztxK6e"
+AwayTeamCopy link to AwayTeam
+Type: string
+Pattern: ^[\w\/\-]+(?:,[\w\/\-]+)*$
+Id команды гостей (один, или несколько через запятую) "123 или 123,456"
+TeamCopy link to Team
+Type: string
+Pattern: ^[\w\/\-]+(?:,[\w\/\-]+)*$
+Id одной из команд (один, или несколько через запятую). Если указано несколько Id, то выборку попадут все матчи, где хотя бы одна из команд в это списке"123 или 123,456"
+BothTeamsCopy link to BothTeams
+Type: string
+Pattern: ^[\w\/\-]+(?:,[\w\/\-]+)*$
+Id двух команд через запятую. Матчи двух команд между собой "123,456"
+EndedCopy link to Ended
+Type: boolean
+Завершенные матчи (8, 9, 10, 17, 18)
+LiveCopy link to Live
+Type: boolean
+Лайв матчи (статусы 3, 4, 5, 6, 7, 11, 18, 19)
+UpcomingCopy link to Upcoming
+Type: boolean
+Предстоящие матчи (дата начала матча больше текущего времени + статус: 1,2)
+OffsetCopy link to Offset
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+0
+max:  
+2147483647
+Пропустить указанное количество матчей от начала выборки. По умолчанию = 0 Количество матчей выводимое за раз ограничено лимитом 1000 матчей. Чтобы извлечь остальные матчи, используется Offset c указанием количества, которое надо пропустить. offset=2000 - пропустить первые 2000 матчей и получить следущие 1000 2000
+LimitCopy link to Limit
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+1
+max:  
+1000
+Ограничить выборку указанным количеством матчей (от 1 до 1000)
+OrderCopy link to Order
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+-1
+max:  
+1
+Сортировать по убыванию (Order=-1) или по возрастанию (Order=1) даты начала матча
+TimeZoneCopy link to TimeZone
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+-12
+max:  
+12
+default: 
+3
+Ваш часовой пояс (от -12 до 12). По умолчанию = 3
+Responses
+
+200
+OK
+application/json
+
+400
+Bad Request
+application/json
+Request Example for GET/Ls/List
+Shell Curl
+
+curl https://api.sstats.net/Ls/List
+
+Test Request
+(get /Ls/List)
+STATUS: 200
+STATUS: 400
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": null,
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+OK
+Команды​Copy link
+Поиск команды по заданным критериям поиска.
+
+Параметры поиска:
+
+Поиск выполняется по одному из параметров в порядке приоритета: uid → id → name
+При поиске по названию используется частичное совпадение (содержит указанную строку)
+Возвращается максимум 100 команд
+Обязательные условия:
+
+Должен быть указан хотя бы один из параметров поиска
+Query Parameters
+uidCopy link to uid
+Type: string
+Format: uuid
+Уникальный идентификатор команды (GUID). Имеет наивысший приоритет при поиске
+idCopy link to id
+Type: string
+Строковый идентификатор команды. Используется если не указан uid
+nameCopy link to name
+Type: string
+Название команды или его часть для поиска. Используется если не указаны uid и id
+Responses
+
+200
+OK
+application/json
+
+400
+Bad Request
+application/json
+Request Example for GET/Ls/Teams
+Shell Curl
+
+curl https://api.sstats.net/Ls/Teams
+
+Test Request
+(get /Ls/Teams)
+STATUS: 200
+STATUS: 400
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": null,
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+OK
+Лиги​Copy link
+Получение списка футбольных лиг с возможностью фильтрации по различным критериям.
+
+Варианты использования:
+
+Без параметров - возвращает все доступные лиги
+По GUID - получение конкретной лиги (приоритетный поиск)
+По ID - поиск лиги по строковому идентификатору
+По названию - поиск лиг, содержащих указанную подстроку (регистр не учитывается)
+Приоритет фильтров: GUID > ID > название
+
+Если указан GUID, остальные параметры игнорируются. Фильтры по ID и названию могут применяться совместно.
+Query Parameters
+guidCopy link to guid
+Type: string
+Format: uuid
+Уникальный идентификатор лиги (GUID). При указании возвращается только одна конкретная лига
+idCopy link to id
+Type: string
+Строковый идентификатор лиги для точного поиска
+nameCopy link to name
+Type: string
+Часть названия лиги для поиска (поиск по подстроке, регистр не учитывается)
+Responses
+
+200
+OK
+application/json
+
+400
+Bad Request
+application/json
+Request Example for GET/Ls/Leagues
+Shell Curl
+
+curl https://api.sstats.net/Ls/Leagues
+
+Test Request
+(get /Ls/Leagues)
+STATUS: 200
+STATUS: 400
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": null,
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+OK
+Сезоны​Copy link
+Возвращает список всех сезонов для указанной футбольной лиги.
+
+Метод позволяет получить информацию о сезонах, используя один из двух способов идентификации лиги:
+
+По уникальному идентификатору (leagueUid)
+По строковому идентификатору (leagueId)
+Примечание: Необходимо указать хотя бы один из параметров идентификации лиги.
+Query Parameters
+leagueUidCopy link to leagueUid
+Type: string
+Format: uuid
+Уникальный идентификатор лиги в формате GUID
+leagueIdCopy link to leagueId
+Type: string
+Строковый идентификатор лиги (альтернатива leagueUid)
+Responses
+
+200
+OK
+application/json
+
+400
+Bad Request
+application/json
+Request Example for GET/Ls/Seasons
+Shell Curl
+
+curl https://api.sstats.net/Ls/Seasons
+
+Test Request
+(get /Ls/Seasons)
+STATUS: 200
+STATUS: 400
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": null,
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+OK
+Матч​Copy link
+Возвращает детальную информацию о футбольном матче по его идентификатору.
+
+Включает:
+
+Основные данные матча (команды, счет, статус, время)
+Букмекерские коэффициенты (если доступны)
+События матча (голы, карточки, замены и др.)
+Примеры использования:
+
+Отображение подробной информации о матче в приложении
+Получение актуальных коэффициентов для ставок
+Просмотр хронологии событий матча
+Query Parameters
+idCopy link to id
+Type: string
+Уникальный идентификатор футбольного матча
+Responses
+
+200
+Объект с полной информацией о матче или сообщение об ошибке, если матч не найден
+application/json
+Request Example for GET/Ls/GameInfo
+Shell Curl
+
+curl https://api.sstats.net/Ls/GameInfo
+
+Test Request
+(get /Ls/GameInfo)
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": null,
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+Объект с полной информацией о матче или сообщение об ошибке, если матч не найден
+Коэффициенты ​Copy link
+Коэффициенты
+Коэффициенты Operations
+GET
+/Odds/bookmakers
+GET
+/Odds/{gameId}
+GET
+/Odds/live/{gameId}
+GET
+/Odds/live-changes/updates-only
+GET
+/Odds/live-changes/{gameId}
+GET
+/Odds/prematch-markets
+GET
+/Odds/live-markets
+Букмекеры​Copy link
+Справочник букмекеров и их идентификаторов
+Responses
+
+200
+application/json
+Request Example for GET/Odds/bookmakers
+Shell Curl
+
+curl https://api.sstats.net/Odds/bookmakers
+
+Test Request
+(get /Odds/bookmakers)
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": [
+    {
+      "id": 1,
+      "bookmakerName": "string"
+    }
+  ],
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+Доматчевые коэффициенты​Copy link
+Полный список всех коэффициентов всех букмекеров.
+
+По умолчанию возвращаются коэффициенты закрытия (за несколько минут (15-30) до начала матча)
+Path Parameters
+gameIdCopy link to gameId
+Type: integer
+Format: int32
+required
+Signed 32-bit integers (commonly used integer type).
+Query Parameters
+bookmakerIdCopy link to bookmakerId
+Type: string
+идентификатор букмекера (один или несколько, через запятую). Например: 4,5
+openingCopy link to opening
+Type: boolean
+default: 
+false
+коэффициенты открытия
+Responses
+
+200
+OK
+application/json
+
+400
+Bad Request
+application/json
+Request Example for GET/Odds/{gameId}
+Shell Curl
+
+curl https://api.sstats.net/Odds/1
+
+Test Request
+(get /Odds/{gameId})
+STATUS: 200
+STATUS: 400
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": [
+    {
+      "bookmakerId": 1,
+      "bookmakerName": "string",
+      "odds": [
+        {
+          "marketId": 1,
+          "marketName": "string",
+          "odds": [
+            {
+              "name": "string",
+              "value": 1,
+              "openingValue": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+OK
+Live коэффициенты​Copy link
+Коэффициенты актуальные в реальном времени, либо последнее обновление на конец матча
+
+Букмекер: Bet365
+
+Лайв коэффициенты обновляются раз в 5-60 секунд
+
+Чтобы за раз отслеживать все матчи, где изменились коэффициенты, используйте /updates-only
+Path Parameters
+gameIdCopy link to gameId
+Type: integer
+Format: int32
+required
+Идентификатор матча
+Responses
+
+200
+application/json
+Request Example for GET/Odds/live/{gameId}
+Shell Curl
+
+curl https://api.sstats.net/Odds/live/1
+
+Test Request
+(get /Odds/live/{gameId})
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": {
+    "elapsed": "string",
+    "stopped": true,
+    "finished": true,
+    "lastUpdate": "2026-02-12T13:40:16.925Z",
+    "gameStatus": 1,
+    "odds": [
+      {
+        "marketId": 1,
+        "marketName": "string",
+        "odds": [
+          {
+            "name": "string",
+            "value": 1,
+            "openingValue": null
+          }
+        ]
+      }
+    ]
+  },
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+Метки live обновлений​Copy link
+Время последнего обновления (актуальности) Live коэффициентов
+
+Передайте список Id матчей через запятую. Например: 1100303,1100304. (Максимально 100 матчей)
+
+Возвращается Id матча и время последнего обновления Live коэффициентов
+
+Используйте этот метод вместе с odds/live-changes чтобы извлекать весь список коэффициентов только по необходимости
+
+Лайв коэффициенты обновляются раз в 5-60 секунд
+Query Parameters
+gameIdCopy link to gameId
+Type: string
+required
+идентификатор матча (один или несколько через запятую)
+Responses
+
+200
+application/json
+Request Example for GET/Odds/live-changes/updates-only
+Shell Curl
+
+curl 'https://api.sstats.net/Odds/live-changes/updates-only?gameId='
+
+Test Request
+(get /Odds/live-changes/updates-only)
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": [
+    {
+      "gameId": 1,
+      "lastUpdate": "2026-02-12T13:40:16.925Z"
+    }
+  ],
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+История Live коэффициентов ​Copy link
+История изменений Live коэффициентов во время матча
+
+Букмекер: Bet365
+
+Примечание
+В заголовках ответа возвращается Last-Modified, который содержит время последнего изменения коэффициентов. Используйте его что не выкачивать содержимое понапрасну
+
+Чтобы за раз отслеживать все матчи, где изменились коэффициенты, используйте /updates-only
+Path Parameters
+gameIdCopy link to gameId
+Type: integer
+Format: int32
+required
+Id матча
+Query Parameters
+marketsCopy link to markets
+Type: string
+Id рынка (один или несколько через запятую)
+outcomesCopy link to outcomes
+Type: string
+Id исхода (один или несколько через запятую)
+Responses
+
+200
+application/json
+Request Example for GET/Odds/live-changes/{gameId}
+Shell Curl
+
+curl https://api.sstats.net/Odds/live-changes/1
+
+Test Request
+(get /Odds/live-changes/{gameId})
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": [
+    {
+      "marketId": 1,
+      "marketName": "string",
+      "outcomes": [
+        {
+          "outcomeId": 1,
+          "outcomeName": "string",
+          "changes": [
+            {
+              "elapsedSeconds": 1,
+              "createdTime": "2026-02-12T13:40:16.925Z",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+Типы доматчевых ставок​Copy link
+Справочинк видов ставок для доматчевых коэффициентов (получаемыйх черех /odds Эти виды ставок используются как MarketId
+Responses
+
+200
+application/json
+Request Example for GET/Odds/prematch-markets
+Shell Curl
+
+curl https://api.sstats.net/Odds/prematch-markets
+
+Test Request
+(get /Odds/prematch-markets)
+STATUS: 200
+
+
+{
+  "additionalProperty": "string"
+}
+Типы Live ставок​Copy link
+Справочинк видов ставок для Live коэффициентов (получаемыйх черех /odds/live Эти виды ставок используются как MarketId
+Responses
+
+200
+application/json
+Request Example for GET/Odds/live-markets
+Shell Curl
+
+curl https://api.sstats.net/Odds/live-markets
+
+Test Request
+(get /Odds/live-markets)
+STATUS: 200
+
+
+{
+  "additionalProperty": "string"
+}
+Игроки ​Copy link
+Игроки
+Игроки Operations
+GET
+/Players/find
+GET
+/Players/{id}
+GET
+/Players/{id}/events
+Поиск игрока​Copy link
+Выполняет поиск футболистов по имени или его части. Поиск не чувствителен к регистру и находит всех игроков, в именах которых содержится указанная подстрока.
+
+Особенности:
+
+Поиск выполняется по частичному совпадению
+Регистр символов не учитывается
+Максимальное количество результатов: 100
+В ответе включается информация о текущей команде игрока
+Пример использования:
+
+name=ronaldo - найдет игроков с именем, содержащим "Ronaldo"
+name=John - найдет всех игроков с именем, содержащим "John"
+Query Parameters
+nameCopy link to name
+Type: string
+required
+Имя или часть имени игрока для поиска (минимум 1 символ)
+Responses
+
+200
+OK
+application/json
+
+400
+Bad Request
+application/json
+
+500
+Internal Server Error
+application/json
+Request Example for GET/Players/find
+Shell Curl
+
+curl 'https://api.sstats.net/Players/find?name='
+
+Test Request
+(get /Players/find)
+STATUS: 200
+STATUS: 400
+STATUS: 500
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": [
+    {
+      "id": null,
+      "name": "string",
+      "team": {
+        "id": 1,
+        "name": "string",
+        "flashId": null,
+        "logoUrl": null,
+        "country": {
+          "code": "string",
+          "name": "string"
+        }
+      }
+    }
+  ],
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+OK
+Данные по игроку​Copy link
+Полные данные по игроку: текущая команда и история трансферов
+Path Parameters
+idCopy link to id
+Type: integer
+Format: int32
+required
+Signed 32-bit integers (commonly used integer type).
+Responses
+
+200
+OK
+application/json
+
+404
+Not Found
+application/json
+
+500
+Internal Server Error
+application/json
+Request Example for GET/Players/{id}
+Shell Curl
+
+curl https://api.sstats.net/Players/1
+
+Test Request
+(get /Players/{id})
+STATUS: 200
+STATUS: 404
+STATUS: 500
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": {
+    "firstName": null,
+    "lastName": null,
+    "nationality": null,
+    "height": null,
+    "birthDate": null,
+    "birthPlace": null,
+    "birthCountry": null,
+    "id": null,
+    "name": "string",
+    "currentTeam": {
+      "id": 1,
+      "name": "string",
+      "flashId": null,
+      "logoUrl": null,
+      "country": {
+        "code": "string",
+        "name": "string"
+      }
+    },
+    "transfers": [
+      {
+        "from": {
+          "id": 1,
+          "name": "string",
+          "flashId": null,
+          "logoUrl": null,
+          "country": {
+            "code": "string",
+            "name": "string"
+          }
+        },
+        "to": {
+          "id": 1,
+          "name": "string",
+          "flashId": null,
+          "logoUrl": null,
+          "country": {
+            "code": "string",
+            "name": "string"
+          }
+        },
+        "date": null
+      }
+    ]
+  },
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+OK
+События игрока​Copy link
+Возвращает список событий указанного игрока в хронологическом порядке.
+
+По умолчанию включает события где игрок:
+
+Является основным участником (голы, карточки, замены и т.д.)
+При включении includeAssists = true дополнительно включает:
+
+События где игрок выступает в роли ассистента
+События сортируются по дате матча (новые сначала), затем по времени в матче. Поддерживается пагинация для работы с большими объемами данных.
+Path Parameters
+idCopy link to id
+Type: integer
+Format: int32
+required
+Уникальный идентификатор игрока
+Query Parameters
+includeAssistsCopy link to includeAssists
+Type: boolean
+default: 
+false
+Включать ли события где игрок является ассистентом (по умолчанию false)
+offsetCopy link to offset
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+0
+max:  
+2147483647
+default: 
+0
+Количество записей для пропуска (для пагинации)
+limitCopy link to limit
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+1
+max:  
+1000
+default: 
+1000
+Максимальное количество записей в ответе (1-1000)
+Responses
+
+200
+application/json
+Request Example for GET/Players/{id}/events
+Shell Curl
+
+curl https://api.sstats.net/Players/1/events
+
+Test Request
+(get /Players/{id}/events)
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": [
+    {
+      "id": 1,
+      "teamId": 1,
+      "elapsed": 1,
+      "extra": null,
+      "type": 1,
+      "name": "string",
+      "player": {
+        "id": null,
+        "name": "string"
+      },
+      "assistPlayer": {
+        "id": null,
+        "name": "string"
+      }
+    }
+  ],
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+Сезоны ​Copy link
+Сезоны
+
+Сезоны турниров
+Сезоны Operations
+GET
+/Seasons/standings
+Турнирная таблица сезона​Copy link
+Query Parameters
+uidCopy link to uid
+Type: string
+Format: uuid
+Responses
+
+200
+application/json
+Request Example for GET/Seasons/standings
+Shell Curl
+
+curl https://api.sstats.net/Seasons/standings
+
+Test Request
+(get /Seasons/standings)
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": {
+    "season": {
+      "uid": "123e4567-e89b-12d3-a456-426614174000",
+      "year": 1,
+      "league": {
+        "id": 1,
+        "name": "string",
+        "country": {
+          "code": "string",
+          "name": "string"
+        },
+        "flashScoreId": null
+      }
+    },
+    "tables": [
+      {
+        "tableNum": 1,
+        "rows": [
+          {
+            "teamId": 1,
+            "rank": 1,
+            "groupName": null,
+            "description": null,
+            "points": 1,
+            "form": null,
+            "played": 1,
+            "wins": 1,
+            "draws": 1,
+            "loses": 1,
+            "...": "[Additional Properties Truncated]"
+          }
+        ]
+      }
+    ]
+  },
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+Команды ​Copy link
+Команды
+Команды Operations
+GET
+/Teams/list
+GET
+/Teams/{id}
+Список команд​Copy link
+Список команд с возможностью фильтрации и пагинации
+Query Parameters
+NameCopy link to Name
+Type: string
+min length:  
+2
+max length:  
+100
+Название команды
+CountryCopy link to Country
+Type: string
+max length:  
+50
+OffsetCopy link to Offset
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+0
+max:  
+2147483647
+Signed 32-bit integers (commonly used integer type).
+LimitCopy link to Limit
+Type: integer | string
+Pattern: ^-?(?:0|[1-9]\d*)$
+Format: int32
+min:  
+1
+max:  
+1000
+Signed 32-bit integers (commonly used integer type).
+Responses
+
+200
+Список команд с информацией о пагинации
+application/json
+Request Example for GET/Teams/list
+Shell Curl
+
+curl https://api.sstats.net/Teams/list
+
+Test Request
+(get /Teams/list)
+STATUS: 200
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": [
+    {
+      "id": 1,
+      "name": "string",
+      "flashId": null,
+      "logoUrl": null,
+      "country": {
+        "code": "string",
+        "name": "string"
+      }
+    }
+  ],
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+Список команд с информацией о пагинации
+Получает детальную информацию о команде по ID​Copy link
+Path Parameters
+idCopy link to id
+Type: integer
+Format: int32
+min:  
+1
+max:  
+2147483647
+required
+Идентификатор команды
+Responses
+
+200
+OK
+application/json
+
+400
+Bad Request
+application/json
+
+404
+Not Found
+application/json
+Request Example for GET/Teams/{id}
+Shell Curl
+
+curl https://api.sstats.net/Teams/1
+
+Test Request
+(get /Teams/{id})
+STATUS: 200
+STATUS: 400
+STATUS: 404
+
+
+{
+  "status": "string",
+  "count": null,
+  "data": {
+    "id": 1,
+    "name": "string",
+    "flashId": null,
+    "logoUrl": null,
+    "country": {
+      "code": "string",
+      "name": "string"
+    },
+    "code": null,
+    "founded": null,
+    "seasons": [
+      {
+        "uid": "123e4567-e89b-12d3-a456-426614174000",
+        "year": 1,
+        "league": {
+          "id": 1,
+          "name": "string",
+          "country": {
+            "code": "string",
+            "name": "string"
+          },
+          "flashScoreId": null
+        }
+      }
+    ],
+    "venue": {
+      "name": null,
+      "address": null,
+      "city": null,
+      "capacity": null
+    },
+    "coach": {
+      "id": null,
+      "name": "string"
+    },
+    "players": [
+      {
+        "id": null,
+        "name": "string"
+      }
+    ]
+  },
+  "requestQuery": null,
+  "message": null,
+  "offset": null,
+  "TotalCount": null,
+  "traceId": null
+}
+OK
+
+
+Использование API в AI агентами и чат ботами
+27.06.2025 02:450 comments
+Благодаря тому, что API SStats.net реализует спецификацию Open API, вам больше не нужно тратить время на чтение документации, написание кода и ручного генерирования сущностей.
+Позвольте вашему AI ассистенту сделать всю работу за вас.
+
+Open API содержит полное техническое описание того, как взаимодействовать с API, которое понимают различные генераторы кода и AI.
+В API Reference полностью описываются все типы данных, передаваемые в как в запросах, так и получаемые в ответе.
+
+🤖 Полная совместимость с AI-ассистентами
+
+ChatGPT, Claude и другие LLM могут автоматически работать с API Sstats.net
+Достаточно описать задачу словами — AI сам напишет нужный код
+Никаких ошибок в запросах — AI точно знает формат данных
+⚡ Что может AI, используя SStats.net?
+
+Построение запросов
+Генерация отчетов и графиков
+Написание кода, сложный анализ и алгоритмы
+Для некоторых чат ботов достаточно указать https://sstats.net и вашу инструкцию и он сам подхватит документацию. Но если AI испытывает трудности, можно вручную скормить ему файлы, специально подготовленные для AI по современному стандарту
+
+llms.txt и llms-full.txt
+
+Эти файлы — относительно новая концепция в мире API, специально созданная для улучшения взаимодействия с языковыми моделями (LLM):
+
+https://sstats.net/openapi/v1.json - основная спецификация Open API
+https://sstats.net/llms.txt — краткое человекочитаемое описание основных возможностей API
+https://sstats.net/llms-full.txt — расширенное описание с примерами использования и дополнительными деталями
+Примеры работы с AI
+
+Запрос к LLM:
+
+Используя спецификацию OpenAPI из https://sstats.net/openapi/v1.json, сгенерируй на Python запрос 
+для получения всех футбольных матчей, которые проходят сегодня.
+LLM сгенерирует:
+
+# Базовый URL API (можно заменить на свой, если отличается)
+API_HOST = "https://api.sstats.net"
+ENDPOINT = f"{API_HOST}/Games/list"
+
+# Ваш API-ключ (если есть). 
+# По умолчанию до 300 запросов в минуту без ключа, или 30/мин на IP.
+API_KEY = os.getenv("SSTATS_API_KEY", None)
+
+def fetch_todays_matches(timezone: int = 3):
+    """
+    Извлекает все матчи за сегодня, с учётом возможного 
+    ограничения в 1000 матчей за один запрос.
+    Возвращает список матчей (каждый — dict).
+    """
+    all_matches = []
+    limit = 1000
+    offset = 0
+
+    # Параметры запроса: Today=True выбирает матчи за текущий день
+    params = {
+        "Today": True,
+        "TimeZone": timezone,
+        "limit": limit,
+        "offset": offset,
+    }
+    if API_KEY:
+        params["apikey"] = API_KEY
+
+    while True:
+        resp = requests.get(ENDPOINT, params=params)
+        resp.raise_for_status()
+        result = resp.json()
+
+        # В спецификации ответ приходит в поле "data"
+        matches = result.get("data", [])
+        if not matches:
+            break
+
+        all_matches.extend(matches)
+        offset += limit
+        params["offset"] = offset
+
+    return all_matches
+Код сгенерирован моделью ChatGTP o4-mini-high (26.06.2025)
+
+Что ещё можно попросить у AI
+
+Запрос к LLM:
+
+Напиши Python код, который:
+1. Извлекает все завершенные матчи Английской Премьер-лиги за последний месяц
+2. Определяет фаворита по коэффициентам букмекеров
+3. Подсчитывает процент побед фаворитов
+Интересные кейсы использования
+
+1. Анализ профитабельности стратегий
+
+Задача: "Проанализируй прибыльность ставок на тотал больше 2.5 в матчах команд с высоким рейтингом Glicko"
+
+LLM агент может:
+
+Получить команды с рейтингом Glicko > 1800
+Найти их матчи за последние 3 месяца
+Извлечь коэффициенты на тотал больше 2.5
+Рассчитать ROI стратегии
+2. Поиск валуйных ставок
+
+Задача: "Найди матчи, где вероятность победы по модели Glicko значительно отличается от коэффициентов букмекеров"
+
+LLM создаст систему, которая:
+
+Получит предстоящие матчи
+Сравнит прогнозы Glicko с коэффициентами
+Выявит расхождения более 15%
+Сформирует отчет с рекомендациями
+3. Live-мониторинг
+
+Задача: "Отслеживай матчи, где в первом тайме забито 0 голов, и уведомляй о коэффициентах на тотал больше 1.5"
+
+LLM разработает скрипт для:
+
+Мониторинга live-матчей
+Фильтрации по счету первого тайма
+Получения актуальных коэффициентов Bet365
+Отправки уведомлений
